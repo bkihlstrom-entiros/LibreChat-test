@@ -40,6 +40,7 @@ const AuthContextProvider = ({
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const logoutRedirectRef = useRef<string | undefined>(undefined);
   const bypassAuthInitialized = useRef<boolean>(false);
+  const refreshAttempted = useRef<boolean>(false);
 
   // Get startup config to check for bypassAuth
   const { data: startupConfig, isLoading: configLoading } = useGetStartupConfig();
@@ -67,6 +68,9 @@ const AuthContextProvider = ({
     () =>
       debounce((userContext: TUserContext) => {
         const { token, isAuthenticated, user, redirect } = userContext;
+        if (token) {
+          refreshAttempted.current = false;
+        }
         setUser(user);
         setToken(token);
         //@ts-ignore - ok for token to be undefined initially
@@ -165,15 +169,21 @@ const AuthContextProvider = ({
       console.log('[AuthContext] Silent refresh skipped - config loading');
       return;
     }
+    if (refreshAttempted.current && (token == null || token === '') && !isAuthenticated) {
+      console.log('[AuthContext] Silent refresh already attempted without credentials; skipping');
+      return;
+    }
     if (authConfig?.test === true) {
       console.log('Test mode. Skipping silent refresh.');
       return;
     }
     console.log('[AuthContext] Running silent refresh...');
+    refreshAttempted.current = true;
     refreshToken.mutate(undefined, {
       onSuccess: (data: t.TRefreshTokenResponse | undefined) => {
         const { user, token = '' } = data ?? {};
         if (token) {
+          refreshAttempted.current = false;
           setUserContext({ token, isAuthenticated: true, user });
         } else {
           console.log('Token is not present. User is not authenticated.');
@@ -191,7 +201,16 @@ const AuthContextProvider = ({
         navigate('/login');
       },
     });
-  }, [bypassAuth, configLoading]);
+  }, [
+    authConfig?.test,
+    bypassAuth,
+    configLoading,
+    isAuthenticated,
+    navigate,
+    refreshToken,
+    setUserContext,
+    token,
+  ]);
 
   useEffect(() => {
     // Skip normal auth flow in bypass auth mode
@@ -217,7 +236,9 @@ const AuthContextProvider = ({
       doSetError(undefined);
     }
     if (token == null || !token || !isAuthenticated) {
-      silentRefresh();
+      if (!refreshAttempted.current) {
+        silentRefresh();
+      }
     }
   }, [
     token,
@@ -228,10 +249,10 @@ const AuthContextProvider = ({
     error,
     setUser,
     navigate,
-    silentRefresh,
     setUserContext,
     bypassAuth,
     configLoading,
+    silentRefresh,
   ]);
 
   // Handle bypass authentication mode
