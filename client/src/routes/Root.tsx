@@ -39,14 +39,17 @@ export default function Root() {
   const fileMap = useFileMap({ isAuthenticated });
 
   const { data: config, isLoading: configLoading } = useGetStartupConfig();
+  const bypassAuth = config?.interface?.bypassAuth === true;
   const { data: termsData } = useUserTermsQuery({
-    enabled: isAuthenticated && config?.interface?.termsOfService?.modalAcceptance === true,
+    enabled:
+      !bypassAuth &&
+      isAuthenticated &&
+      config?.interface?.termsOfService?.modalAcceptance === true,
   });
 
   // Check if chat history is disabled
   const disableChatHistory = config?.interface?.disableChatHistory === true;
   const disableAccountSettings = config?.interface?.accountSettings === false;
-  const bypassAuth = config?.interface?.bypassAuth === true;
   
   // Debug logging
   useEffect(() => {

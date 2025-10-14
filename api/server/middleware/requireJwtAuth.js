@@ -1,23 +1,47 @@
 const cookies = require('cookie');
 const passport = require('passport');
 const { isEnabled } = require('@librechat/api');
+const { shouldBypassAuth, createGuestUser } = require('~/server/utils/bypassAuth');
 
-/**
- * Custom Middleware to handle JWT authentication, with support for OpenID token reuse
- * Switches between JWT and OpenID authentication based on cookies and environment settings
- */
-const requireJwtAuth = (req, res, next) => {
-  // Check if token provider is specified in cookies
+const getTokenProvider = (req) => {
   const cookieHeader = req.headers.cookie;
-  const tokenProvider = cookieHeader ? cookies.parse(cookieHeader).token_provider : null;
+  return cookieHeader ? cookies.parse(cookieHeader).token_provider : null;
+};
 
-  // Use OpenID authentication if token provider is OpenID and OPENID_REUSE_TOKENS is enabled
-  if (tokenProvider === 'openid' && isEnabled(process.env.OPENID_REUSE_TOKENS)) {
-    return passport.authenticate('openidJwt', { session: false })(req, res, next);
+const authenticate = (strategy, req, res, next, callback) =>
+  callback
+    ? passport.authenticate(strategy, { session: false }, callback)(req, res, next)
+    : passport.authenticate(strategy, { session: false })(req, res, next);
+
+const runPassportAuth = (req, res, next, callback) => {
+  const tokenProvider = getTokenProvider(req);
+  const useOpenId = tokenProvider === 'openid' && isEnabled(process.env.OPENID_REUSE_TOKENS);
+  const strategy = useOpenId ? 'openidJwt' : 'jwt';
+
+  return authenticate(strategy, req, res, next, callback);
+};
+
+const requireJwtAuth = async (req, res, next) => {
+  const bypassEnabled = await shouldBypassAuth();
+
+  if (!bypassEnabled) {
+    return runPassportAuth(req, res, next);
   }
 
-  // Default to standard JWT authentication
-  return passport.authenticate('jwt', { session: false })(req, res, next);
+  return runPassportAuth(req, res, next, (err, user) => {
+    if (err) {
+      return next(err);
+    }
+
+    if (user) {
+      req.user = user;
+      return next();
+    }
+
+    req.user = createGuestUser();
+    req.isBypassAuth = true;
+    return next();
+  });
 };
 
 module.exports = requireJwtAuth;

@@ -254,8 +254,8 @@ const AuthContextProvider = ({
       };
       setUser(guestUser);
       setIsAuthenticated(true);
-      setToken('bypass-auth-token');
-      setTokenHeader('bypass-auth-token');
+      setToken(undefined);
+      setTokenHeader();
       console.log('[AuthContext] Bypass auth initialized, user set to guest');
       // Don't navigate here - let the normal flow handle it
     }

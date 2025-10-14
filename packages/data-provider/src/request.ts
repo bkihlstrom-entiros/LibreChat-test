@@ -2,6 +2,8 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import * as endpoints from './api-endpoints';
 import { setTokenHeader } from './headers-helpers';
+
+let bypassAuthMode = false;
 import type * as t from './types';
 
 async function _get<T>(url: string, options?: AxiosRequestConfig): Promise<T> {
@@ -64,8 +66,23 @@ async function _patch(url: string, data?: any) {
 let isRefreshing = false;
 let failedQueue: { resolve: (value?: any) => void; reject: (reason?: any) => void }[] = [];
 
-const refreshToken = (retry?: boolean): Promise<t.TRefreshTokenResponse | undefined> =>
-  _post(endpoints.refreshToken(retry));
+const setBypassAuthMode = (enabled: boolean) => {
+  bypassAuthMode = enabled;
+
+  if (enabled) {
+    setTokenHeader();
+  }
+};
+
+const isBypassAuthMode = () => bypassAuthMode;
+
+const refreshToken = (retry?: boolean): Promise<t.TRefreshTokenResponse | undefined> => {
+  if (bypassAuthMode) {
+    return Promise.resolve(undefined);
+  }
+
+  return _post(endpoints.refreshToken(retry));
+};
 
 const dispatchTokenUpdatedEvent = (token: string) => {
   setTokenHeader(token);
@@ -100,6 +117,12 @@ if (typeof window !== 'undefined') {
       }
 
       if (error.response.status === 401 && !originalRequest._retry) {
+        if (bypassAuthMode) {
+          originalRequest._retry = true;
+          console.warn('401 error encountered while bypass auth mode is enabled; skipping refresh');
+          return Promise.reject(error);
+        }
+
         console.warn('401 error, refreshing token');
         originalRequest._retry = true;
 
@@ -162,4 +185,6 @@ export default {
   patch: _patch,
   refreshToken,
   dispatchTokenUpdatedEvent,
+  setBypassAuthMode,
+  isBypassAuthMode,
 };

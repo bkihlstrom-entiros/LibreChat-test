@@ -169,12 +169,20 @@ export function cancelMCPOAuth(serverName: string): Promise<m.CancelMCPOAuthResp
 
 /* Config */
 
-export const getStartupConfig = (): Promise<
-  config.TStartupConfig & {
-    mcpCustomUserVars?: Record<string, { title: string; description: string }>;
+type StartupConfigResponse = config.TStartupConfig & {
+  mcpCustomUserVars?: Record<string, { title: string; description: string }>;
+};
+
+export const getStartupConfig = async (): Promise<StartupConfigResponse> => {
+  const startupConfig = await request.get<StartupConfigResponse>(endpoints.config());
+
+  try {
+    request.setBypassAuthMode(startupConfig?.interface?.bypassAuth === true);
+  } catch (error) {
+    console.warn('[data-service] Failed to update bypass auth mode from startup config', error);
   }
-> => {
-  return request.get(endpoints.config());
+
+  return startupConfig;
 };
 
 export const getAIEndpoints = (): Promise<t.TEndpointsConfig> => {
