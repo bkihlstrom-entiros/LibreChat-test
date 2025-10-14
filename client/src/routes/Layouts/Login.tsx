@@ -1,12 +1,15 @@
 import { useEffect } from 'react';
 import { useRecoilState } from 'recoil';
+import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '~/hooks/AuthContext';
+import { useGetStartupConfig } from '~/data-provider';
 import StartupLayout from './Startup';
 import store from '~/store';
 
 export default function LoginLayout() {
   const { isAuthenticated } = useAuthContext();
   const [queriesEnabled, setQueriesEnabled] = useRecoilState<boolean>(store.queriesEnabled);
+  
   useEffect(() => {
     if (queriesEnabled) {
       return;
@@ -19,5 +22,6 @@ export default function LoginLayout() {
       clearTimeout(timeout);
     };
   }, [queriesEnabled, setQueriesEnabled]);
+  
   return <StartupLayout isAuthenticated={isAuthenticated} />;
 }

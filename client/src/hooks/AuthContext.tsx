@@ -19,6 +19,7 @@ import {
   useLoginUserMutation,
   useLogoutUserMutation,
   useRefreshTokenMutation,
+  useGetStartupConfig,
 } from '~/data-provider';
 import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
 import useTimeout from './useTimeout';
@@ -38,6 +39,20 @@ const AuthContextProvider = ({
   const [error, setError] = useState<string | undefined>(undefined);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const logoutRedirectRef = useRef<string | undefined>(undefined);
+  const bypassAuthInitialized = useRef<boolean>(false);
+
+  // Get startup config to check for bypassAuth
+  const { data: startupConfig, isLoading: configLoading } = useGetStartupConfig();
+  const bypassAuth = startupConfig?.interface?.bypassAuth === true;
+
+  // Debug log config state
+  useEffect(() => {
+    console.log('[AuthContext] Config state:', { 
+      configLoading, 
+      bypassAuth, 
+      hasConfig: !!startupConfig 
+    });
+  }, [configLoading, bypassAuth, startupConfig]);
 
   const { data: userRole = null } = useGetRole(SystemRoles.USER, {
     enabled: !!(isAuthenticated && (user?.role ?? '')),
@@ -117,25 +132,44 @@ const AuthContextProvider = ({
 
   const logout = useCallback(
     (redirect?: string) => {
+      // Prevent logout in bypass auth mode
+      if (bypassAuth) {
+        console.log('Logout disabled in bypass auth mode');
+        return;
+      }
       if (redirect) {
         logoutRedirectRef.current = redirect;
       }
       logoutUser.mutate(undefined);
     },
-    [logoutUser],
+    [logoutUser, bypassAuth],
   );
 
-  const userQuery = useGetUserQuery({ enabled: !!(token ?? '') });
+  // Disable user query in bypass auth mode OR while config is loading
+  const userQuery = useGetUserQuery({ 
+    enabled: !bypassAuth && !configLoading && !!(token ?? '') 
+  });
 
   const login = (data: t.TLoginUser) => {
     loginUser.mutate(data);
   };
 
   const silentRefresh = useCallback(() => {
+    // Skip refresh in bypass auth mode
+    if (bypassAuth) {
+      console.log('[AuthContext] Silent refresh skipped - bypass auth enabled');
+      return;
+    }
+    // Skip refresh while config is loading
+    if (configLoading) {
+      console.log('[AuthContext] Silent refresh skipped - config loading');
+      return;
+    }
     if (authConfig?.test === true) {
       console.log('Test mode. Skipping silent refresh.');
       return;
     }
+    console.log('[AuthContext] Running silent refresh...');
     refreshToken.mutate(undefined, {
       onSuccess: (data: t.TRefreshTokenResponse | undefined) => {
         const { user, token = '' } = data ?? {};
@@ -157,9 +191,22 @@ const AuthContextProvider = ({
         navigate('/login');
       },
     });
-  }, []);
+  }, [bypassAuth, configLoading]);
 
   useEffect(() => {
+    // Skip normal auth flow in bypass auth mode
+    if (bypassAuth) {
+      console.log('[AuthContext] Skipping normal auth flow - bypass auth enabled');
+      return;
+    }
+    
+    // Don't run auth checks while config is still loading
+    // This prevents the 401 error before we know if bypass auth is enabled
+    if (configLoading) {
+      console.log('[AuthContext] Waiting for config to load...');
+      return;
+    }
+    
     if (userQuery.data) {
       setUser(userQuery.data);
     } else if (userQuery.isError) {
@@ -183,7 +230,36 @@ const AuthContextProvider = ({
     navigate,
     silentRefresh,
     setUserContext,
+    bypassAuth,
+    configLoading,
   ]);
+
+  // Handle bypass authentication mode
+  useEffect(() => {
+    if (bypassAuth && !bypassAuthInitialized.current && startupConfig) {
+      console.log('[AuthContext] Initializing bypass auth mode');
+      bypassAuthInitialized.current = true;
+      // Create a guest user and mark as authenticated
+      const guestUser: t.TUser = {
+        id: 'guest',
+        username: 'Guest',
+        email: 'guest@localhost',
+        name: 'Guest User',
+        avatar: '',
+        role: 'user',
+        provider: 'local',
+        plugins: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setUser(guestUser);
+      setIsAuthenticated(true);
+      setToken('bypass-auth-token');
+      setTokenHeader('bypass-auth-token');
+      console.log('[AuthContext] Bypass auth initialized, user set to guest');
+      // Don't navigate here - let the normal flow handle it
+    }
+  }, [bypassAuth, startupConfig, setUser]);
 
   useEffect(() => {
     const handleTokenUpdate = (event) => {

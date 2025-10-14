@@ -560,6 +560,13 @@ export const interfaceSchema = z
       .optional(),
     fileSearch: z.boolean().optional(),
     fileCitations: z.boolean().optional(),
+    disableChatHistory: z.boolean().optional(),
+    speechToText: z.boolean().optional(),
+    toolsMenu: z.boolean().optional(),
+    attachFiles: z.boolean().optional(),
+    accountSettings: z.boolean().optional(),
+    footer: z.boolean().optional(),
+    bypassAuth: z.boolean().optional(),
   })
   .default({
     endpointsMenu: true,
@@ -585,6 +592,13 @@ export const interfaceSchema = z
     },
     fileSearch: true,
     fileCitations: true,
+    disableChatHistory: false,
+    speechToText: true,
+    toolsMenu: true,
+    attachFiles: true,
+    accountSettings: true,
+    footer: true,
+    bypassAuth: false,
   });
 
 export type TInterfaceConfig = z.infer<typeof interfaceSchema>;

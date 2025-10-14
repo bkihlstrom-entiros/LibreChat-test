@@ -26,7 +26,9 @@ export const useGetEndpointsQuery = <TData = t.TEndpointsConfig>(
 export const useGetStartupConfig = (
   config?: UseQueryOptions<t.TStartupConfig>,
 ): QueryObserverResult<t.TStartupConfig> => {
-  const queriesEnabled = useRecoilValue<boolean>(store.queriesEnabled);
+  // Note: This query is ALWAYS enabled, even when queriesEnabled is false
+  // This is critical for bypass auth mode to work, as we need to know
+  // if bypassAuth is enabled BEFORE any other queries run
   return useQuery<t.TStartupConfig>(
     [QueryKeys.startupConfig],
     () => dataService.getStartupConfig(),
@@ -36,7 +38,8 @@ export const useGetStartupConfig = (
       refetchOnReconnect: false,
       refetchOnMount: false,
       ...config,
-      enabled: (config?.enabled ?? true) === true && queriesEnabled,
+      // CRITICAL: Always enabled, don't check queriesEnabled
+      enabled: config?.enabled ?? true,
     },
   );
 };

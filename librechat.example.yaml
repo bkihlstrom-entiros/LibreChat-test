@@ -32,6 +32,41 @@ interface:
   # Note: This setting does not disable the Agents File Search Capability.
   # To disable the Agents Capability, see the Agents Endpoint configuration instead.
   fileSearch: true
+  # When enabled, disables chat history and search functionality.
+  # Each time the app is opened, a new conversation is created that is not saved to the database.
+  # This effectively makes every chat session ephemeral and prevents conversation history from being stored.
+  # The navigation panel and search bar will be hidden from the UI.
+  # Default: false
+  # disableChatHistory: false
+  # When enabled, allows speech-to-text (microphone input) functionality.
+  # Set to false to hide the microphone button in the chat input area.
+  # Default: true
+  # speechToText: true
+  # When enabled, displays the tools menu dropdown that allows users to manually toggle tools.
+  # Set to false to hide the tools menu and automatically enable all available tools.
+  # Tools will be enabled by default when this is set to false.
+  # Default: true
+  # toolsMenu: true
+  # When enabled, displays the attach files button in the chat input area.
+  # Set to false to hide the attach files button and prevent file uploads.
+  # Default: true
+  # attachFiles: true
+  # When enabled, displays the account settings menu in the navigation sidebar.
+  # Set to false to hide the account settings menu. A logout button will be added to the header instead.
+  # If both accountSettings and disableChatHistory are set to false, the entire navigation sidebar will be hidden.
+  # Default: true
+  # accountSettings: true
+  # When enabled, displays the footer bar at the bottom with LibreChat link, privacy policy, and terms of service.
+  # Set to false to hide the footer entirely.
+  # Default: true
+  # footer: true
+  # When enabled, exposes the chat interface without requiring authentication.
+  # In this mode, user settings and chat history are ALWAYS disabled regardless of other settings.
+  # Users skip the login screen and are presented directly with the chat window as a guest.
+  # WARNING: This mode provides no user authentication or authorization. Use only in trusted environments
+  # or when you want to provide a public, anonymous chat interface.
+  # Default: false
+  # bypassAuth: false
   # Privacy policy settings
   privacyPolicy:
     externalUrl: 'https://librechat.ai/privacy-policy'

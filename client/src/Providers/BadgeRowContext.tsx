@@ -1,6 +1,12 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useMemo } from 'react';
 import { useSetRecoilState } from 'recoil';
-import { Tools, Constants, LocalStorageKeys, AgentCapabilities } from 'librechat-data-provider';
+import {
+  Tools,
+  Constants,
+  LocalStorageKeys,
+  AgentCapabilities,
+  getConfigDefaults,
+} from 'librechat-data-provider';
 import type { TAgentsEndpoint } from 'librechat-data-provider';
 import {
   useMCPServerManager,
@@ -9,8 +15,11 @@ import {
   useCodeApiKeyForm,
   useToolToggle,
 } from '~/hooks';
+import { useGetStartupConfig } from '~/data-provider';
 import { getTimestampedValue, setTimestamp } from '~/utils/timestamps';
 import { ephemeralAgentByConvoId } from '~/store';
+
+const defaultInterface = getConfigDefaults().interface;
 
 interface BadgeRowContextType {
   conversationId?: string | null;
@@ -48,7 +57,13 @@ export default function BadgeRowProvider({
   const lastKeyRef = useRef<string>('');
   const hasInitializedRef = useRef(false);
   const { agentsConfig } = useGetAgentsConfig();
+  const { data: startupConfig } = useGetStartupConfig();
   const key = conversationId ?? Constants.NEW_CONVO;
+
+  const interfaceConfig = useMemo(
+    () => startupConfig?.interface ?? defaultInterface,
+    [startupConfig],
+  );
 
   const setEphemeralAgent = useSetRecoilState(ephemeralAgentByConvoId(key));
 
@@ -66,6 +81,9 @@ export default function BadgeRowProvider({
       const webSearchToggleKey = `${LocalStorageKeys.LAST_WEB_SEARCH_TOGGLE_}${key}`;
       const fileSearchToggleKey = `${LocalStorageKeys.LAST_FILE_SEARCH_TOGGLE_}${key}`;
       const artifactsToggleKey = `${LocalStorageKeys.LAST_ARTIFACTS_TOGGLE_}${key}`;
+
+      // If toolsMenu is disabled, automatically enable all tools
+      const autoEnableAllTools = interfaceConfig.toolsMenu === false;
 
       const codeToggleValue = getTimestampedValue(codeToggleKey);
       const webSearchToggleValue = getTimestampedValue(webSearchToggleKey);
@@ -109,12 +127,21 @@ export default function BadgeRowProvider({
       /**
        * Always set values for all tools (use defaults if not in `localStorage`)
        * If `ephemeralAgent` is `null`, create a new object with just our tool values
+       * When toolsMenu is disabled, enable all tools automatically
        */
       const finalValues = {
-        [Tools.execute_code]: initialValues[Tools.execute_code] ?? false,
-        [Tools.web_search]: initialValues[Tools.web_search] ?? false,
-        [Tools.file_search]: initialValues[Tools.file_search] ?? false,
-        [AgentCapabilities.artifacts]: initialValues[AgentCapabilities.artifacts] ?? false,
+        [Tools.execute_code]: autoEnableAllTools
+          ? true
+          : initialValues[Tools.execute_code] ?? false,
+        [Tools.web_search]: autoEnableAllTools
+          ? true
+          : initialValues[Tools.web_search] ?? false,
+        [Tools.file_search]: autoEnableAllTools
+          ? true
+          : initialValues[Tools.file_search] ?? false,
+        [AgentCapabilities.artifacts]: autoEnableAllTools
+          ? true
+          : initialValues[AgentCapabilities.artifacts] ?? false,
       };
 
       setEphemeralAgent((prev) => ({
@@ -138,7 +165,7 @@ export default function BadgeRowProvider({
         }
       });
     }
-  }, [key, isSubmitting, setEphemeralAgent]);
+  }, [key, isSubmitting, setEphemeralAgent, interfaceConfig.toolsMenu]);
 
   /** CodeInterpreter hooks */
   const codeApiKeyForm = useCodeApiKeyForm({});

@@ -37,9 +37,16 @@ export default function ChatRoute() {
     enabled: isAuthenticated,
     refetchOnMount: 'always',
   });
+
+  // Check if chat history is disabled
+  const disableChatHistory = startupConfig?.interface?.disableChatHistory === true;
+
   const initialConvoQuery = useGetConvoIdQuery(conversationId, {
     enabled:
-      isAuthenticated && conversationId !== Constants.NEW_CONVO && !hasSetConversation.current,
+      isAuthenticated &&
+      conversationId !== Constants.NEW_CONVO &&
+      !hasSetConversation.current &&
+      !disableChatHistory,
   });
   const endpointsQuery = useGetEndpointsQuery({ enabled: isAuthenticated });
   const assistantListMap = useAssistantListMap();
@@ -58,6 +65,19 @@ export default function ChatRoute() {
    *  Adjusting this may have unintended consequences on the conversation state.
    */
   useEffect(() => {
+    // If chat history is disabled, always force a new conversation
+    if (disableChatHistory && endpointsQuery.data && modelsQuery.data) {
+      const spec = getDefaultModelSpec(startupConfig);
+      logger.log('conversation', 'ChatRoute, disableChatHistory new convo effect', conversation);
+      newConversation({
+        modelsData: modelsQuery.data,
+        template: { conversationId: Constants.NEW_CONVO },
+        ...(spec ? { preset: getModelSpecPreset(spec) } : {}),
+      });
+      hasSetConversation.current = true;
+      return;
+    }
+
     const shouldSetConvo =
       (startupConfig && !hasSetConversation.current && !modelsQuery.data?.initial) ?? false;
     /* Early exit if startupConfig is not loaded and conversation is already set and only initial models have loaded */
@@ -115,6 +135,7 @@ export default function ChatRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     startupConfig,
+    disableChatHistory,
     initialConvoQuery.data,
     endpointsQuery.data,
     modelsQuery.data,

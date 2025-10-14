@@ -10,11 +10,13 @@ import React, {
 } from 'react';
 import { Badge } from '@librechat/client';
 import { useRecoilValue, useRecoilCallback } from 'recoil';
+import { getConfigDefaults } from 'librechat-data-provider';
 import type { LucideIcon } from 'lucide-react';
 import CodeInterpreter from './CodeInterpreter';
 import { BadgeRowProvider } from '~/Providers';
 import ToolsDropdown from './ToolsDropdown';
 import type { BadgeItem } from '~/common';
+import { useGetStartupConfig } from '~/data-provider';
 import { useChatBadges } from '~/hooks';
 import ToolDialogs from './ToolDialogs';
 import FileSearch from './FileSearch';
@@ -22,6 +24,8 @@ import Artifacts from './Artifacts';
 import MCPSelect from './MCPSelect';
 import WebSearch from './WebSearch';
 import store from '~/store';
+
+const defaultInterface = getConfigDefaults().interface;
 
 interface BadgeRowProps {
   showEphemeralBadges?: boolean;
@@ -156,10 +160,16 @@ function BadgeRow({
     draggedBadgeActive: false,
   });
 
+  const { data: startupConfig } = useGetStartupConfig();
   const badgeRefs = useRef<Record<string, HTMLDivElement>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrame = useRef<number | null>(null);
   const containerRectRef = useRef<DOMRect | null>(null);
+
+  const interfaceConfig = useMemo(
+    () => startupConfig?.interface ?? defaultInterface,
+    [startupConfig],
+  );
 
   const allBadges = useChatBadges();
   const isEditing = useRecoilValue(store.isEditingBadges);
@@ -322,7 +332,7 @@ function BadgeRow({
   return (
     <BadgeRowProvider conversationId={conversationId} isSubmitting={isSubmitting}>
       <div ref={containerRef} className="relative flex flex-wrap items-center gap-2">
-        {showEphemeralBadges === true && <ToolsDropdown />}
+        {showEphemeralBadges === true && interfaceConfig.toolsMenu !== false && <ToolsDropdown />}
         {tempBadges.map((badge, index) => (
           <React.Fragment key={badge.id}>
             {dragState.draggedBadge && dragState.insertIndex === index && ghostBadge && (
@@ -362,7 +372,7 @@ function BadgeRow({
             />
           </div>
         )}
-        {showEphemeralBadges === true && (
+        {showEphemeralBadges === true && interfaceConfig.toolsMenu !== false && (
           <>
             <WebSearch />
             <CodeInterpreter />

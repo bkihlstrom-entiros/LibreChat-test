@@ -55,7 +55,20 @@ export async function loadDefaultInterface({
     fileCitations: interfaceConfig?.fileCitations,
     peoplePicker: interfaceConfig?.peoplePicker,
     marketplace: interfaceConfig?.marketplace,
+    disableChatHistory: interfaceConfig?.disableChatHistory,
+    speechToText: interfaceConfig?.speechToText,
+    toolsMenu: interfaceConfig?.toolsMenu,
+    attachFiles: interfaceConfig?.attachFiles,
+    accountSettings: interfaceConfig?.accountSettings,
+    footer: interfaceConfig?.footer,
+    bypassAuth: interfaceConfig?.bypassAuth,
   });
+
+  // If bypassAuth is enabled, force disable chat history and account settings
+  if (loadedInterface.bypassAuth === true) {
+    loadedInterface.disableChatHistory = true;
+    loadedInterface.accountSettings = false;
+  }
 
   return loadedInterface;
 }

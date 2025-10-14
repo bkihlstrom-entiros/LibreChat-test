@@ -92,6 +92,19 @@ module.exports = {
         logger.debug(`[saveConvo] ${metadata.context}`);
       }
 
+      // Check if chat history is disabled
+      const appConfig = req.config;
+      if (appConfig?.interfaceConfig?.disableChatHistory === true) {
+        logger.debug('[saveConvo] Chat history disabled, skipping save');
+        // Return a mock conversation object without saving to database
+        return {
+          conversationId,
+          ...convo,
+          user: req.user.id,
+          messages: [],
+        };
+      }
+
       const messages = await getMessages({ conversationId }, '_id');
       const update = { ...convo, messages, user: req.user.id };
 
@@ -101,7 +114,6 @@ module.exports = {
 
       if (req?.body?.isTemporary) {
         try {
-          const appConfig = req.config;
           update.expiredAt = createTempChatExpirationDate(appConfig?.interfaceConfig);
         } catch (err) {
           logger.error('Error creating temporary chat expiration date:', err);

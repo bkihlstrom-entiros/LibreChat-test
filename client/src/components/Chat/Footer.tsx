@@ -11,6 +11,12 @@ export default function Footer({ className }: { className?: string }) {
 
   const privacyPolicy = config?.interface?.privacyPolicy;
   const termsOfService = config?.interface?.termsOfService;
+  const showFooter = config?.interface?.footer !== false;
+
+  // Don't render footer if disabled
+  if (!showFooter) {
+    return null;
+  }
 
   const privacyPolicyRender = privacyPolicy?.externalUrl != null && (
     <a

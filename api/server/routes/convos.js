@@ -12,7 +12,7 @@ const {
 const { getConvosByCursor, deleteConvos, getConvo, saveConvo } = require('~/models/Conversation');
 const { forkConversation, duplicateConversation } = require('~/server/utils/import/fork');
 const { storage, importFileFilter } = require('~/server/routes/files/multer');
-const requireJwtAuth = require('~/server/middleware/requireJwtAuth');
+const optionalJwtAuth = require('~/server/middleware/optionalJwtAuth');
 const { importConversations } = require('~/server/utils/import');
 const { deleteToolCalls } = require('~/models/ToolCall');
 const getLogStores = require('~/cache/getLogStores');
@@ -23,9 +23,19 @@ const assistantClients = {
 };
 
 const router = express.Router();
-router.use(requireJwtAuth);
+router.use(optionalJwtAuth);
 
 router.get('/', async (req, res) => {
+  // Check if chat history is disabled
+  if (req.config?.interfaceConfig?.disableChatHistory === true) {
+    logger.debug('[GET /convos] Chat history disabled, returning empty result');
+    return res.status(200).json({
+      conversations: [],
+      nextCursor: null,
+      hasMore: false,
+    });
+  }
+
   const limit = parseInt(req.query.limit, 10) || 25;
   const cursor = req.query.cursor;
   const isArchived = isEnabled(req.query.isArchived);

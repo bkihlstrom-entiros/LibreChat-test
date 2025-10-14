@@ -11,7 +11,7 @@ import {
   useLocalStorage,
   useNavScrolling,
 } from '~/hooks';
-import { useConversationsInfiniteQuery } from '~/data-provider';
+import { useConversationsInfiniteQuery, useGetStartupConfig } from '~/data-provider';
 import { Conversations } from '~/components/Conversations';
 import SearchBar from './SearchBar';
 import NewChat from './NewChat';
@@ -69,6 +69,11 @@ const Nav = memo(
 
     const search = useRecoilValue(store.search);
 
+    // Get startup config to check if chat history is disabled
+    const { data: startupConfig } = useGetStartupConfig();
+    const disableChatHistory = startupConfig?.interface?.disableChatHistory === true;
+    const disableAccountSettings = startupConfig?.interface?.accountSettings === false;
+
     const { data, fetchNextPage, isFetchingNextPage, isLoading, isFetching, refetch } =
       useConversationsInfiniteQuery(
         {
@@ -76,7 +81,7 @@ const Nav = memo(
           search: search.debouncedQuery || undefined,
         },
         {
-          enabled: isAuthenticated,
+          enabled: isAuthenticated && !disableChatHistory,
           staleTime: 30000,
           cacheTime: 300000,
         },
@@ -151,8 +156,8 @@ const Nav = memo(
     }, [isFetchingNextPage, computedHasNextPage, fetchNextPage]);
 
     const subHeaders = useMemo(
-      () => search.enabled === true && <SearchBar isSmallScreen={isSmallScreen} />,
-      [search.enabled, isSmallScreen],
+      () => !disableChatHistory && search.enabled === true && <SearchBar isSmallScreen={isSmallScreen} />,
+      [disableChatHistory, search.enabled, isSmallScreen],
     );
 
     const headerButtons = useMemo(
@@ -219,19 +224,23 @@ const Nav = memo(
                         headerButtons={headerButtons}
                         isSmallScreen={isSmallScreen}
                       />
-                      <Conversations
-                        conversations={conversations}
-                        moveToTop={moveToTop}
-                        toggleNav={itemToggleNav}
-                        containerRef={listRef}
-                        loadMoreConversations={loadMoreConversations}
-                        isLoading={isFetchingNextPage || showLoading || isLoading}
-                        isSearchLoading={isSearchLoading}
-                      />
+                      {!disableChatHistory && (
+                        <Conversations
+                          conversations={conversations}
+                          moveToTop={moveToTop}
+                          toggleNav={itemToggleNav}
+                          containerRef={listRef}
+                          loadMoreConversations={loadMoreConversations}
+                          isLoading={isFetchingNextPage || showLoading || isLoading}
+                          isSearchLoading={isSearchLoading}
+                        />
+                      )}
                     </div>
-                    <Suspense fallback={null}>
-                      <AccountSettings />
-                    </Suspense>
+                    {!disableAccountSettings && (
+                      <Suspense fallback={null}>
+                        <AccountSettings />
+                      </Suspense>
+                    )}
                   </nav>
                 </div>
               </div>

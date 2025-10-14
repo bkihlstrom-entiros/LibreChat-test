@@ -39,6 +39,23 @@ async function saveMessage(req, params, metadata) {
     throw new Error('User not authenticated');
   }
 
+  // Check if chat history is disabled
+  const appConfig = req.config;
+  if (appConfig?.interfaceConfig?.disableChatHistory === true) {
+    logger.debug('[saveMessage] Chat history disabled, skipping save');
+    // Return a mock message object without saving to database
+    return {
+      messageId: params.newMessageId || params.messageId,
+      conversationId: params.conversationId,
+      parentMessageId: params.parentMessageId,
+      sender: params.sender,
+      text: params.text,
+      isCreatedByUser: params.isCreatedByUser,
+      user: req.user.id,
+      ...params,
+    };
+  }
+
   const validConvoId = idSchema.safeParse(params.conversationId);
   if (!validConvoId.success) {
     logger.warn(`Invalid conversation ID: ${params.conversationId}`);
@@ -56,7 +73,6 @@ async function saveMessage(req, params, metadata) {
 
     if (req?.body?.isTemporary) {
       try {
-        const appConfig = req.config;
         update.expiredAt = createTempChatExpirationDate(appConfig?.interfaceConfig);
       } catch (err) {
         logger.error('Error creating temporary chat expiration date:', err);

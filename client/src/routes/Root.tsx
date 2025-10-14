@@ -38,10 +38,28 @@ export default function Root() {
   const agentsMap = useAgentsMap({ isAuthenticated });
   const fileMap = useFileMap({ isAuthenticated });
 
-  const { data: config } = useGetStartupConfig();
+  const { data: config, isLoading: configLoading } = useGetStartupConfig();
   const { data: termsData } = useUserTermsQuery({
     enabled: isAuthenticated && config?.interface?.termsOfService?.modalAcceptance === true,
   });
+
+  // Check if chat history is disabled
+  const disableChatHistory = config?.interface?.disableChatHistory === true;
+  const disableAccountSettings = config?.interface?.accountSettings === false;
+  const bypassAuth = config?.interface?.bypassAuth === true;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[Root] State:', { 
+      isAuthenticated, 
+      bypassAuth, 
+      configLoading,
+      hasConfig: !!config 
+    });
+  }, [isAuthenticated, bypassAuth, configLoading, config]);
+  
+  // Show nav only when chat history is enabled (we'll move account settings to header when chat history is disabled)
+  const shouldShowNav = !disableChatHistory;
 
   useSearchEnabled(isAuthenticated);
 
@@ -60,8 +78,23 @@ export default function Root() {
     logout('/login?redirect=false');
   };
 
-  if (!isAuthenticated) {
+  // Don't block rendering if:
+  // 1. User is authenticated, OR
+  // 2. Bypass auth is enabled, OR  
+  // 3. Still loading config (give time for bypass auth to initialize)
+  const shouldRender = isAuthenticated || bypassAuth || configLoading;
+  
+  if (!shouldRender) {
     return null;
+  }
+
+  // Show minimal loading state while config loads and auth initializes
+  if (configLoading && !isAuthenticated && !bypassAuth) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-text-primary">Loading...</div>
+      </div>
+    );
   }
 
   return (
@@ -73,9 +106,9 @@ export default function Root() {
               <Banner onHeightChange={setBannerHeight} />
               <div className="flex" style={{ height: `calc(100dvh - ${bannerHeight}px)` }}>
                 <div className="relative z-0 flex h-full w-full overflow-hidden">
-                  <Nav navVisible={navVisible} setNavVisible={setNavVisible} />
+                  {shouldShowNav && <Nav navVisible={navVisible} setNavVisible={setNavVisible} />}
                   <div className="relative flex h-full max-w-full flex-1 flex-col overflow-hidden">
-                    <MobileNav setNavVisible={setNavVisible} />
+                    {shouldShowNav && <MobileNav setNavVisible={setNavVisible} />}
                     <Outlet context={{ navVisible, setNavVisible } satisfies ContextType} />
                   </div>
                 </div>
