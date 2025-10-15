@@ -86,6 +86,7 @@ export default function useSSE(
   });
 
   const { data: startupConfig } = useGetStartupConfig();
+  const bypassAuth = startupConfig?.interface?.bypassAuth === true;
   const balanceQuery = useGetUserBalance({
     enabled: !!isAuthenticated && startupConfig?.balance?.enabled,
   });
@@ -104,9 +105,14 @@ export default function useSSE(
     let textIndex = null;
     clearStepMaps();
 
+    const sseHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      sseHeaders.Authorization = `Bearer ${token}`;
+    }
+
     const sse = new SSE(payloadData.server, {
       payload: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: sseHeaders,
     });
 
     sse.addEventListener('attachment', (e: MessageEvent) => {
@@ -199,7 +205,7 @@ export default function useSSE(
 
     sse.addEventListener('error', async (e: MessageEvent) => {
       /* @ts-ignore */
-      if (e.responseCode === 401) {
+      if (e.responseCode === 401 && !bypassAuth) {
         /* token expired, refresh and retry */
         try {
           const refreshResponse = await request.refreshToken();

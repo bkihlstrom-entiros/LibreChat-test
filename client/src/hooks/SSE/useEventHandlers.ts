@@ -36,6 +36,7 @@ import useStepHandler from '~/hooks/SSE/useStepHandler';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { MESSAGE_UPDATE_INTERVAL } from '~/common';
 import { useLiveAnnouncer } from '~/Providers';
+import { useGetStartupConfig } from '~/data-provider';
 
 type TSyncData = {
   sync: boolean;
@@ -176,10 +177,14 @@ export default function useEventHandlers({
   const setAbortScroll = useSetRecoilState(store.abortScroll);
   const navigate = useNavigate();
   const location = useLocation();
+  const { data: startupConfig } = useGetStartupConfig();
 
   const lastAnnouncementTimeRef = useRef(Date.now());
   const { conversationId: paramId } = useParams();
   const { token } = useAuthContext();
+  const chatHistoryDisabled =
+    startupConfig?.interface?.disableChatHistory === true ||
+    startupConfig?.interface?.bypassAuth === true;
 
   const contentHandler = useContentHandler({ setMessages, getMessages });
   const { stepHandler, clearStepMaps } = useStepHandler({
@@ -257,18 +262,23 @@ export default function useEventHandlers({
       }
 
       const isNewConvo = conversation.conversationId !== submission.conversation.conversationId;
-      if (isNewConvo) {
+      if (isNewConvo && !chatHistoryDisabled) {
         removeConvoFromAllQueries(queryClient, submission.conversation.conversationId as string);
       }
 
       // refresh title
-      if (genTitle && isNewConvo && requestMessage.parentMessageId === Constants.NO_PARENT) {
+      if (
+        genTitle &&
+        !chatHistoryDisabled &&
+        isNewConvo &&
+        requestMessage.parentMessageId === Constants.NO_PARENT
+      ) {
         setTimeout(() => {
           genTitle.mutate({ conversationId: convoUpdate.conversationId as string });
         }, 2500);
       }
 
-      if (setConversation && !isAddedRequest) {
+      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
         setConversation((prevState) => {
           const update = { ...prevState, ...convoUpdate };
           return update;
@@ -277,7 +287,15 @@ export default function useEventHandlers({
 
       setIsSubmitting(false);
     },
-    [setMessages, setConversation, genTitle, isAddedRequest, queryClient, setIsSubmitting],
+    [
+      setMessages,
+      setConversation,
+      genTitle,
+      isAddedRequest,
+      queryClient,
+      setIsSubmitting,
+      chatHistoryDisabled,
+    ],
   );
 
   const syncHandler = useCallback(
@@ -301,7 +319,7 @@ export default function useEventHandlers({
       });
 
       let update = {} as TConversation;
-      if (setConversation && !isAddedRequest) {
+      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
         setConversation((prevState) => {
           const parentId = requestMessage.parentMessageId;
           const title = getConvoTitle({
@@ -325,7 +343,7 @@ export default function useEventHandlers({
         } else {
           updateConvoInAllQueries(queryClient, update.conversationId!, (_c) => update);
         }
-      } else if (setConversation) {
+      } else if (setConversation && !chatHistoryDisabled) {
         setConversation((prevState) => {
           update = tConvoUpdateSchema.parse({
             ...prevState,
@@ -351,6 +369,7 @@ export default function useEventHandlers({
       setConversation,
       setShowStopButton,
       resetLatestMessage,
+      chatHistoryDisabled,
     ],
   );
 
@@ -376,7 +395,7 @@ export default function useEventHandlers({
       });
 
       let update = {} as TConversation;
-      if (setConversation && !isAddedRequest) {
+      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
         setConversation((prevState) => {
           const parentId = isRegenerate ? userMessage.overrideParentMessageId : parentMessageId;
           const title = getConvoTitle({
@@ -400,7 +419,7 @@ export default function useEventHandlers({
             updateConvoInAllQueries(queryClient, update.conversationId!, (_c) => update);
           }
         }
-      } else if (setConversation) {
+      } else if (setConversation && !chatHistoryDisabled) {
         setConversation((prevState) => {
           update = tConvoUpdateSchema.parse({
             ...prevState,
@@ -410,7 +429,7 @@ export default function useEventHandlers({
         });
       }
 
-      if (conversationId) {
+      if (conversationId && !chatHistoryDisabled) {
         applyAgentTemplate(
           conversationId,
           submission.conversation.conversationId,
@@ -433,6 +452,7 @@ export default function useEventHandlers({
       setConversation,
       resetLatestMessage,
       applyAgentTemplate,
+      chatHistoryDisabled,
     ],
   );
 
@@ -479,7 +499,9 @@ export default function useEventHandlers({
 
       const setFinalMessages = (id: string | null, _messages: TMessage[]) => {
         setMessages(_messages);
-        queryClient.setQueryData<TMessage[]>([QueryKeys.messages, id], _messages);
+        if (!chatHistoryDisabled) {
+          queryClient.setQueryData<TMessage[]>([QueryKeys.messages, id], _messages);
+        }
       };
 
       const hasNoResponse =
@@ -491,7 +513,7 @@ export default function useEventHandlers({
       if (!conversation.conversationId && hasNoResponse) {
         const currentConvoId =
           (submissionConvo.conversationId ?? conversation.conversationId) || Constants.NEW_CONVO;
-        if (isNewConvo && submissionConvo.conversationId) {
+        if (!chatHistoryDisabled && isNewConvo && submissionConvo.conversationId) {
           removeConvoFromAllQueries(queryClient, submissionConvo.conversationId);
         }
 
@@ -523,19 +545,22 @@ export default function useEventHandlers({
         isAssistantsEndpoint(submissionConvo.endpoint) &&
         (!submissionConvo.conversationId || submissionConvo.conversationId === Constants.NEW_CONVO)
       ) {
-        queryClient.setQueryData<TMessage[]>(
-          [QueryKeys.messages, conversation.conversationId],
-          [...currentMessages],
-        );
+        if (!chatHistoryDisabled) {
+          queryClient.setQueryData<TMessage[]>(
+            [QueryKeys.messages, conversation.conversationId],
+            [...currentMessages],
+          );
+        }
       }
 
-      if (isNewConvo && submissionConvo.conversationId) {
+      if (!chatHistoryDisabled && isNewConvo && submissionConvo.conversationId) {
         removeConvoFromAllQueries(queryClient, submissionConvo.conversationId);
       }
 
       /* Refresh title */
       if (
         genTitle &&
+        !chatHistoryDisabled &&
         isNewConvo &&
         !isTemporary &&
         requestMessage &&
@@ -546,7 +571,7 @@ export default function useEventHandlers({
         }, 2500);
       }
 
-      if (setConversation && isAddedRequest !== true) {
+      if (!chatHistoryDisabled && setConversation && isAddedRequest !== true) {
         setConversation((prevState) => {
           const update = {
             ...prevState,
@@ -595,6 +620,7 @@ export default function useEventHandlers({
       location.pathname,
       applyAgentTemplate,
       attachmentHandler,
+      chatHistoryDisabled,
     ],
   );
 

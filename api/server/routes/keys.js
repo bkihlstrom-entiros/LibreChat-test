@@ -3,18 +3,31 @@ const router = express.Router();
 const { updateUserKey, deleteUserKey, getUserKeyExpiry } = require('../services/UserService');
 const { requireJwtAuth } = require('../middleware/');
 
+function isGuestUser(req) {
+  return req?.user?.isGuest === true || req?.isBypassAuth === true;
+}
+
 router.put('/', requireJwtAuth, async (req, res) => {
+  if (isGuestUser(req)) {
+    return res.status(403).json({ error: 'User keys are disabled in bypass mode' });
+  }
   await updateUserKey({ userId: req.user.id, ...req.body });
   res.status(201).send();
 });
 
 router.delete('/:name', requireJwtAuth, async (req, res) => {
+  if (isGuestUser(req)) {
+    return res.status(204).send();
+  }
   const { name } = req.params;
   await deleteUserKey({ userId: req.user.id, name });
   res.status(204).send();
 });
 
 router.delete('/', requireJwtAuth, async (req, res) => {
+  if (isGuestUser(req)) {
+    return res.status(204).send();
+  }
   const { all } = req.query;
 
   if (all !== 'true') {
@@ -27,6 +40,9 @@ router.delete('/', requireJwtAuth, async (req, res) => {
 });
 
 router.get('/', requireJwtAuth, async (req, res) => {
+  if (isGuestUser(req)) {
+    return res.status(200).send({ expiresAt: null });
+  }
   const { name } = req.query;
   const response = await getUserKeyExpiry({ userId: req.user.id, name });
   res.status(200).send(response);

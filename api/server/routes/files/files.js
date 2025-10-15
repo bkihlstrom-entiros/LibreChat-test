@@ -35,8 +35,15 @@ const { Readable } = require('stream');
 
 const router = express.Router();
 
+function isGuestUser(req) {
+  return req?.user?.isGuest === true || req?.isBypassAuth === true;
+}
+
 router.get('/', async (req, res) => {
   try {
+    if (isGuestUser(req)) {
+      return res.status(200).send([]);
+    }
     const appConfig = req.config;
     const files = await getFiles({ user: req.user.id });
     if (appConfig.fileStrategy === FileSources.s3) {
@@ -66,6 +73,9 @@ router.get('/', async (req, res) => {
  */
 router.get('/agent/:agent_id', async (req, res) => {
   try {
+    if (isGuestUser(req)) {
+      return res.status(200).json([]);
+    }
     const { agent_id } = req.params;
     const userId = req.user.id;
 
@@ -126,6 +136,9 @@ router.get('/config', async (req, res) => {
 
 router.delete('/', async (req, res) => {
   try {
+    if (isGuestUser(req)) {
+      return res.status(403).json({ message: 'File access is disabled in bypass mode' });
+    }
     const { files: _files } = req.body;
 
     /** @type {MongoFile[]} */
@@ -263,6 +276,9 @@ function isValidID(str) {
 
 router.get('/code/download/:session_id/:fileId', async (req, res) => {
   try {
+    if (isGuestUser(req)) {
+      return res.status(403).send('File downloads are disabled in bypass mode');
+    }
     const { session_id, fileId } = req.params;
     const logPrefix = `Session ID: ${session_id} | File ID: ${fileId} | Code output download requested by user `;
     logger.debug(logPrefix);
@@ -301,6 +317,9 @@ router.get('/code/download/:session_id/:fileId', async (req, res) => {
 
 router.get('/download/:userId/:file_id', fileAccess, async (req, res) => {
   try {
+    if (isGuestUser(req)) {
+      return res.status(403).send('File downloads are disabled in bypass mode');
+    }
     const { userId, file_id } = req.params;
     logger.debug(`File download requested by user ${userId}: ${file_id}`);
 
@@ -371,6 +390,16 @@ router.post('/', async (req, res) => {
   let cleanup = true;
 
   try {
+    if (isGuestUser(req)) {
+      if (req.file?.path) {
+        try {
+          await fs.unlink(req.file.path);
+        } catch (error) {
+          logger.error('[/files] Error deleting file for guest upload attempt:', error);
+        }
+      }
+      return res.status(403).json({ message: 'File uploads are disabled in bypass mode' });
+    }
     filterFile({ req });
 
     metadata.temp_file_id = metadata.file_id;
