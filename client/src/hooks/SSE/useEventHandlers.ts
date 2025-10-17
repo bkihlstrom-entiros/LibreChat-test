@@ -278,7 +278,7 @@ export default function useEventHandlers({
         }, 2500);
       }
 
-      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
+      if (setConversation && !isAddedRequest) {
         setConversation((prevState) => {
           const update = { ...prevState, ...convoUpdate };
           return update;
@@ -319,7 +319,7 @@ export default function useEventHandlers({
       });
 
       let update = {} as TConversation;
-      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
+      if (setConversation && !isAddedRequest) {
         setConversation((prevState) => {
           const parentId = requestMessage.parentMessageId;
           const title = getConvoTitle({
@@ -338,12 +338,14 @@ export default function useEventHandlers({
           return update;
         });
 
-        if (requestMessage.parentMessageId === Constants.NO_PARENT) {
-          addConvoToAllQueries(queryClient, update);
-        } else {
-          updateConvoInAllQueries(queryClient, update.conversationId!, (_c) => update);
+        if (!chatHistoryDisabled) {
+          if (requestMessage.parentMessageId === Constants.NO_PARENT) {
+            addConvoToAllQueries(queryClient, update);
+          } else {
+            updateConvoInAllQueries(queryClient, update.conversationId!, (_c) => update);
+          }
         }
-      } else if (setConversation && !chatHistoryDisabled) {
+      } else if (setConversation) {
         setConversation((prevState) => {
           update = tConvoUpdateSchema.parse({
             ...prevState,
@@ -395,7 +397,7 @@ export default function useEventHandlers({
       });
 
       let update = {} as TConversation;
-      if (setConversation && !isAddedRequest && !chatHistoryDisabled) {
+      if (setConversation && !isAddedRequest) {
         setConversation((prevState) => {
           const parentId = isRegenerate ? userMessage.overrideParentMessageId : parentMessageId;
           const title = getConvoTitle({
@@ -412,14 +414,14 @@ export default function useEventHandlers({
           return update;
         });
 
-        if (!isTemporary) {
+        if (!chatHistoryDisabled && !isTemporary) {
           if (parentMessageId === Constants.NO_PARENT) {
             addConvoToAllQueries(queryClient, update);
           } else {
             updateConvoInAllQueries(queryClient, update.conversationId!, (_c) => update);
           }
         }
-      } else if (setConversation && !chatHistoryDisabled) {
+      } else if (setConversation) {
         setConversation((prevState) => {
           update = tConvoUpdateSchema.parse({
             ...prevState,
@@ -429,7 +431,7 @@ export default function useEventHandlers({
         });
       }
 
-      if (conversationId && !chatHistoryDisabled) {
+      if (conversationId) {
         applyAgentTemplate(
           conversationId,
           submission.conversation.conversationId,
@@ -571,7 +573,8 @@ export default function useEventHandlers({
         }, 2500);
       }
 
-      if (!chatHistoryDisabled && setConversation && isAddedRequest !== true) {
+      if (setConversation && isAddedRequest !== true) {
+        let updatedConversation: TConversation | null = null;
         setConversation((prevState) => {
           const update = {
             ...prevState,
@@ -580,13 +583,7 @@ export default function useEventHandlers({
           if (prevState?.model != null && prevState.model !== submissionConvo.model) {
             update.model = prevState.model;
           }
-          const cachedConvo = queryClient.getQueryData<TConversation>([
-            QueryKeys.conversation,
-            conversation.conversationId,
-          ]);
-          if (!cachedConvo) {
-            queryClient.setQueryData([QueryKeys.conversation, conversation.conversationId], update);
-          }
+          updatedConversation = update;
           return update;
         });
 
@@ -598,8 +595,21 @@ export default function useEventHandlers({
           );
         }
 
-        if (location.pathname === `/c/${Constants.NEW_CONVO}`) {
-          navigate(`/c/${conversation.conversationId}`, { replace: true });
+        if (!chatHistoryDisabled && updatedConversation) {
+          const cachedConvo = queryClient.getQueryData<TConversation>([
+            QueryKeys.conversation,
+            updatedConversation.conversationId,
+          ]);
+          if (!cachedConvo) {
+            queryClient.setQueryData(
+              [QueryKeys.conversation, updatedConversation.conversationId],
+              updatedConversation,
+            );
+          }
+
+          if (location.pathname === `/c/${Constants.NEW_CONVO}`) {
+            navigate(`/c/${updatedConversation.conversationId}`, { replace: true });
+          }
         }
       }
 
